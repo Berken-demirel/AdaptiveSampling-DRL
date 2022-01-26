@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH -J experiment
+#SBATCH -A ALFARUQU_LAB
+#SBATCH -p standard
+#SBATCH -N 1
+##SBATCH --gres=gpu:V100:1
+#SBATCH --mem=12G
+#SBATCH --output=results/eval/output_%A.txt
+##SBATCH --mail-type=end
+##SBATCH --mail-user=panwangc@uci.edu
+
+python src/experiment.py
