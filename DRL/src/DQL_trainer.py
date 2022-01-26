@@ -183,6 +183,10 @@ for trial in range(config.num_trials):
                     next_q_values = agent.target_net(next_states, actions).gather(dim=1, index=max_actions).squeeze(1)
                     target_q_values = rewards.squeeze(1) + (1-dones)*(config.gamma * next_q_values)
                 current_q_values = agent.policy_net(current_states, prev_actions).gather(dim=1, index=actions).squeeze(1)
+
+                print(f'target_q_values: {target_q_values}')
+                print(f'current_q_values: {current_q_values}')
+                exit(-1)
                 # q_val_estimate = agent.policy_net(features_current, channel_rates_current, queue_states_current)
                 # print(f'q_val_estimate: {q_val_estimate}')
                 # print(f'actions: {actions}')
