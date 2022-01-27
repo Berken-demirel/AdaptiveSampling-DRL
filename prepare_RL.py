@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
 from sklearn.metrics import confusion_matrix
 import tensorflow_addons as tfa
-
+import  pickle
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import regularizers
@@ -125,6 +125,14 @@ def label_encoding(labels):
             encoded_labels[i] = [0, 0, 0, 0 ,1]
     return np.array(encoded_labels)
 
+def give_me_reward(decimate_rate,true_labels,predict):
+    return_array = np.zeros(len(predict,))
+    for i in range(len(predict)):
+        if predict[i] == true_labels[i]:
+            return_array[i,] = decimate_rate
+        else:
+            return_array[i,] = -10
+    return return_array
 
 def Ordonez2016DeepWithDAP(inp_shape, out_shape, pool_list=(4, 1)):
     nb_filters = 64
@@ -243,12 +251,15 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
 
-data = np.load('MIT-BIH_last_normalized.npz',allow_pickle=True)
+data = np.load('MIT-BIH_True-Final.npz',allow_pickle=True)
 data_class_names = ["N", "S","V"]
 X_train = data['X_train']
 Y_train = data['y_train']
 X_test = data['X_test']
 Y_test = data['y_test']
+
+with open('patient.pickle', 'rb') as handle:
+    patients = pickle.load(handle)
 
 X_train = np.expand_dims(X_train, 3)
 X_test = np.expand_dims(X_test, 3)
@@ -264,21 +275,34 @@ dana_model.summary()
 W_combinations = [32,64,128,256]
 H_combinations = [[0]]
 n_batch_per_train_setp = 5  ## This is B
-#
-# dana_model = dimension_adaptive_training(dana_model,
-#                                          X_train, Y_train,
-#                                          X_val, Y_val,
-#                                          batch_size=60, num_epochs=500,
-#                                          save_dir="saved_models/dana/dense_2",
-#                                          W_combinations=W_combinations,
-#                                          H_combinations=H_combinations,
-#                                          n_batch_per_train_setp=n_batch_per_train_setp
-#                                          )
 
-dana_model.load_weights("saved_models/dana/new_model")
+dana_model.load_weights("saved_models/dana/new_model_true_3")
 tf.debugging.set_log_device_placement(True)
 gpus = tf.config.list_logical_devices('GPU')
 strategy = tf.distribute.MirroredStrategy(gpus)
+
+for i in range(len(patients)):
+    current_patient = patients[i]
+    patient_array = np.zeros((len(current_patient[1]), 4))
+    counter = 0
+    for w, W_comb in enumerate(W_combinations):
+        logits_np_array = np.zeros((1, 3))
+        true_labels = current_patient[1]
+        current_data = np.expand_dims(current_patient[0], 2)
+        current_data = np.expand_dims(current_data, 3)
+        X = current_data.copy()
+        X = X[:, :, :, :]
+        X = tf.image.resize(X, (W_comb, 1))
+        X_splitted = np.array_split(X, 10, axis=0)
+        for k in X_splitted:
+            logits_np_array = np.concatenate((logits_np_array, dana_model(k, training=False)))
+        logits = np.delete(logits_np_array, 0, axis=0)
+        prediction = np.argmax(logits, 1)
+        return_array = give_me_reward(256/W_comb,true_labels,prediction)
+        patient_array[:, counter] = return_array
+        counter += 1
+    patients[i].append(patient_array)
+
 with strategy.scope():
     for w, W_comb in enumerate(W_combinations):
         for h, H_comb in enumerate(H_combinations):
