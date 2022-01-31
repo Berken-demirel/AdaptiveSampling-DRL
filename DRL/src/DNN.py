@@ -6,19 +6,19 @@ class DNN(nn.Module):
         super(DNN, self).__init__()
         self.config = config
         self.fc1 = nn.Linear(self.config.feature_size, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 32)
-        self.fc4 = nn.Linear(32, 16)
-        self.fc5 = nn.Linear(16+1, config.num_actions)
-        self.relu = nn.ReLU(inplace=True)
+        self.fc2 = nn.Linear(128, 16)
+        self.fc3 = nn.Linear(16+1, config.num_actions)
+        # self.fc2 = nn.Linear(256, 256)
+        # self.fc3 = nn.Linear(256+1, config.num_actions)
+        self.relu = nn.LeakyReLU()
 
     def forward(self, features, prev_action):
         x = self.relu(self.fc1(features))
+        #print(f'fc1 x: {x}')
         x = self.relu(self.fc2(x))
-        x = self.relu(self.fc3(x))
-        x = self.relu(self.fc4(x))
+        #print(f'fc2 x: {x}')
 
         x = torch.cat((x, prev_action), dim=1)
-        x = self.relu(self.fc5(x))
-
+        x = self.fc3(x)
+        #print(f'output: {x}')
         return x

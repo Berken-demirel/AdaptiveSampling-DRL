@@ -88,7 +88,7 @@ agent.policy_net.to(config.device)
 agent.target_net.to(config.device)
 agent.target_net.eval()
 
-config.num_to_action = {0: '8', 1: '4', 2: '2', 3: '1'}
+action_to_decimation = {0: '8', 1: '4', 2: '2', 3: '1'}
 
 eval_steps = 1
 
@@ -110,7 +110,7 @@ else:
 print(f'name: {config.name}')
 print(f'device: {config.device}')
 print(f'num_trials: {config.num_trials}')
-print(f'num_episodes: {config.num_subjects_train}')
+print(f'num_subjects_train: {config.num_subjects_train}')
 print(f'replay_batch_size: {config.replay_batch_size}')
 print(f'epsilon_decay_rate: {config.epsilon_decay_rate}')
 print(f'max_epsilon: {config.max_epsilon}')
@@ -118,6 +118,7 @@ print(f'min_epsilon: {config.min_epsilon}')
 print(f'learning_rate_min: {config.learning_rate_min}')
 print(f'learning_rate_max: {config.learning_rate_max}')
 print(f'gamma: {config.gamma}')
+print(f'hard_update: {config.hard_update}')
 print(f'target_network_update_rate: {config.target_network_hard_update_rate}')
 print(f'tau: {config.tau}')
 print(f'replay_memory_size: {config.replay_memory_size}')
@@ -127,23 +128,31 @@ print(f'replay_memory_size: {config.replay_memory_size}')
 
 torch.set_printoptions(profile="full")
 
+optimal_actions = []
+eval_actions = []
+
 start_time = time.time()
-for trial in range(config.num_trials):
+for trial in range(config.num_trials+1):
     print(f'Trial {trial+1}')
     environment = Environment(config, 'train')
     environment.reset()
     environment.case = 'DRL'
     prev_action = 3
-
+    if trial == config.num_trials:
+        agent.epsilon = 0
     for subject in range(config.num_subjects_train):
         environment.done = 0
         environment.subject_index = subject
         current_state = environment.get_state(False)
         per_subject_reward = []
         #print(f'environment.num_data_segments_train: {environment.num_data_segments_train}')
-        while not environment.done:
-            #print(f'environment.num_data_segments_train: {environment.num_data_segments_train}')
+        counter = 0
+        while environment.done == 0:
+            if trial == 0:
+                optimal_actions.append(np.argmax(environment.data_train[subject][2][counter]))
             action = agent.select_action(current_state, prev_action)
+            if trial == config.num_trials:
+                eval_actions.append(action)
             reward, next_state = environment.step(action)
             per_subject_reward.append(reward)
             # print(f'current_state: {current_state}')
@@ -179,7 +188,10 @@ for trial in range(config.num_trials):
                     current_states, prev_actions, actions, rewards, next_states, dones = agent.replay_buffer.sample(config.replay_batch_size)
 
                 with torch.no_grad():
+                    temp = agent.policy_net(next_states, actions)
                     max_actions = agent.policy_net(next_states, actions).detach().argmax(dim=1).unsqueeze(1)
+                    #print(f'temp: {temp}')
+                    #print(f'max_actions: {max_actions}')
                     next_q_values = agent.target_net(next_states, actions).gather(dim=1, index=max_actions).squeeze(1)
                     target_q_values = rewards.squeeze(1) + np.multiply((1-dones).squeeze(1), (config.gamma * next_q_values))
                 current_q_values = agent.policy_net(current_states, prev_actions).gather(dim=1, index=actions).squeeze(1)
@@ -210,11 +222,17 @@ for trial in range(config.num_trials):
                     # isamp = torch.FloatTensor(is_weights)
                     # loss = torch.mean(loss_1 * isamp)
                 else:
-                    loss = nn.functional.mse_loss(current_q_values, target_q_values, reduction='sum')
+                    #print(f'current_q_values: {current_q_values.shape}')
+                    #print(f'target_q_values: {target_q_values.shape}')
+                    loss_func = nn.MSELoss()
+                    loss = loss_func(current_q_values, target_q_values)
+                    #loss = target_q_values - current_q_values
+                    #print(f'loss: {loss}')
                 losses.append(loss.item())
 
                 agent.optimizer.zero_grad()
                 loss.backward()
+                # print(agent.policy_net.fc5.weight.grad)
 
                 if config.gradient_clip:
                     for param in agent.policy_net.parameters():
@@ -222,23 +240,25 @@ for trial in range(config.num_trials):
                 agent.optimizer.step()
                 #agent.scheduler.step()
 
-                # updates every 200 frames
+                # updates every period
                 if config.hard_update:
-                    if (trial+1) % config.target_network_hard_update_rate == 0:
+                    if (counter+1) % config.target_network_hard_update_rate == 0:
                         # hard copy model parameters to target model parameters
                         agent.target_net.load_state_dict(agent.policy_net.state_dict())
                 else:
                     # soft update every step
                     for target_param, policy_param in zip(agent.target_net.parameters(), agent.policy_net.parameters()):
                         #target_param.data.copy_(policy_param)
-                        target_param.data.copy_(config.tau * policy_param + (1 - config.tau) * target_param)
+                        target_param.data.copy_(config.tau * policy_param.data + (1 - config.tau) * target_param.data)
             prev_action = action
             current_state = next_state
+            counter += 1
         avg_reward_list.append((sum(per_subject_reward) / environment.num_data_segments_train))
 
     # epsilon greedy exploration
-    agent.epsilon = agent.epsilon_decay(trial+1, config.num_trials)
-    print(f'epsilon: {agent.epsilon}')
+    if trial < config.num_trials:
+        agent.epsilon = agent.epsilon_decay(trial+1, config.num_trials)
+        print(f'epsilon: {agent.epsilon}')
 
 end_time = time.time()
 elapsed_time = end_time - start_time
@@ -254,6 +274,23 @@ if not os.path.exists(model_save_path):
 torch.save({'model_state_dict': agent.policy_net.state_dict()}, full_path)
 
 print(f'total_time: {total_time}, average_trial_time: {total_time/config.num_trials}')
+
+optimal_action_count = len(optimal_actions)
+optimal_action_counts = Counter(optimal_actions)
+print(f'optimal_action_counts: {optimal_action_counts}')
+print(f'optimal_action_ratios: {np.round(np.asarray(list(optimal_action_counts.values()))/optimal_action_count*100, 2)}')
+
+eval_action_count = len(eval_actions)
+eval_action_counts = Counter(eval_actions)
+print(f'eval_action_counts: {eval_action_counts}')
+print(f'eval_action_ratios: {np.round(np.asarray(list(eval_action_counts.values()))/eval_action_count*100, 2)}')
+
+action_accuracy = 0
+for idx in range(optimal_action_count):
+    if eval_actions[idx] == optimal_actions[idx]:
+        action_accuracy += 1
+action_accuracy = round(action_accuracy/optimal_action_count * 100, 2)
+print(f'action_accuracy: {action_accuracy}')
 
 print("TRAIN")
 

@@ -24,11 +24,12 @@ config = Config(config_file_path)
 
 environment = Environment(config, 'eval')
 
-config.num_to_action = {0: '8', 1: '4', 2: '2', 3: '1'}
+action_to_decimation = {0: '8', 1: '4', 2: '2', 3: '1'}
 
 print(f'name: {config.name}')
 print(f'device: {config.device}')
 print(f'num_trials: {config.num_trials}')
+print(f'num_subjects_train: {config.num_subjects_train}')
 print(f'replay_batch_size: {config.replay_batch_size}')
 print(f'epsilon_decay_rate: {config.epsilon_decay_rate}')
 print(f'max_epsilon: {config.max_epsilon}')
@@ -36,6 +37,7 @@ print(f'min_epsilon: {config.min_epsilon}')
 print(f'learning_rate_min: {config.learning_rate_min}')
 print(f'learning_rate_max: {config.learning_rate_max}')
 print(f'gamma: {config.gamma}')
+print(f'hard_update: {config.hard_update}')
 print(f'target_network_update_rate: {config.target_network_hard_update_rate}')
 print(f'tau: {config.tau}')
 print(f'replay_memory_size: {config.replay_memory_size}')
@@ -66,24 +68,57 @@ else:
 agent.policy_net.to(config.device)
 agent.policy_net.eval()
 
+print(f'agent.policy_net.parameters: {agent.policy_net.parameters}')
+print(f'agent.policy_net.fc1.weight: {agent.policy_net.fc1.weight}')
+print(f'agent.policy_net.fc2.weight: {agent.policy_net.fc2.weight}')
+print(f'agent.policy_net.fc3.weight: {agent.policy_net.fc3.weight}')
+
 policy_actions = []
+patient_wise_policy_actions = {}
 
-current_state = environment.get_state(False)
-prev_action = 3
-
+total_time = 0
 start_time = time.time()
-for i in range(config.num_steps_eval):
-    with torch.no_grad():
-        best_action = agent.select_action(current_state, prev_action)
-        reward, current_state = environment.step(best_action)
-    policy_actions.append(best_action)
-    prev_action = best_action
 
+# for i in range(environment.num_steps_eval):
+for subject in range(environment.num_subjects_eval):
+    environment.done = 0
+    environment.subject_index = subject
+    current_state = environment.get_state(False)
+    prev_action = 3
+    patient_wise_list = []
+    while environment.done == 0:
+        with torch.no_grad():
+            current_state = torch.tensor([current_state], dtype=torch.float, device=config.device)
+            prev_action = torch.tensor([[prev_action]], dtype=torch.float, device=config.device)
+            # print(f'current_state: {current_state}')
+            # current_state = torch.tensor(current_state, dtype=torch.float, device=config.device).squeeze(-1)[None]
+            # prev_action = torch.tensor([[prev_action]], dtype=torch.float, device=config.device)
+            action_values = agent.policy_net(current_state, prev_action)
+            best_action = torch.argmax(action_values)
+            # print(f'action_values: {action_values}')
+            _, next_state = environment.step(best_action)
+        policy_actions.append(best_action.item())
+        patient_wise_list.append(best_action.item())
+        prev_action = best_action
+        current_state = next_state
+    patient_wise_policy_actions[subject] = patient_wise_list
 end_time = time.time()
 elapsed_time = end_time - start_time
 total_time += elapsed_time
 
-print(f'total_time: {total_time}, average_episode_time: {total_time / episodes_to_run}')
+action_count = len(policy_actions)
 
-with open('policy_actions.npy', 'wb') as f:
+print(f'total_time: {total_time}, average_step_time: {total_time / action_count}')
+action_counts = Counter(policy_actions)
+print(f'action_counts: {action_counts}')
+print(f'action_ratios: {np.round(np.asarray(list(action_counts.values()))/action_count*100, 2)}')
+print(f'policy_actions length: {action_count}')
+print(f'policy_actions: {policy_actions}')
+
+print(f'patient_wise_actions: {patient_wise_policy_actions}')
+
+with open(f'results/eval/{model_name}_action_trajectory.npy', 'wb') as f:
     np.save(f, policy_actions)
+
+with open(f'results/eval/{model_name}_patient_wise_action_trajectory.npy', 'wb') as f:
+    np.save(f, patient_wise_policy_actions)

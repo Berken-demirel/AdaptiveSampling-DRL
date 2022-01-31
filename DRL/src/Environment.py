@@ -23,6 +23,10 @@ class Environment:
         self.config = config
         self.mode = mode
 
+        self.decimation_reward = {0: 8, 1: 4, 2: 2, 3: 1}
+        self.reverse_decimation_reward = {0: -1, 1: -2, 2: -4, 3: -8}
+        self.norm_reward = {8: 1.0, 4: 0.5, 2: 0.0, 1: -0.5, -10: -1}
+
         self.data_train = None
         self.data_eval = None
 
@@ -85,7 +89,10 @@ class Environment:
 
         if not self.config.override_num_subjects:
             self.config.num_subjects_train = len(self.data_train)
-        self.num_steps_eval = len(self.data_eval['X_test'])
+        self.num_subjects_eval = len(self.data_eval)
+        # print(f'num_subjects_eval: {self.num_subjects_eval}')
+        # self.num_steps_eval = len(self.data_eval['X_test'])
+        # print(f'num_steps_eval: {self.num_steps_eval}')
 
     def sample_state_train(self, increment=True):
         if increment:
@@ -104,17 +111,25 @@ class Environment:
     def sample_state_eval(self, increment=True):
         if increment:
             self.sample_state_eval_index += 1
-        sample_state_eval = self.data_eval[self.sample_state_eval_index]
+            if self.sample_state_eval_index >= self.num_data_segments_eval:
+                sample_state_eval = self.data_eval[self.subject_index][0][self.sample_state_eval_index-1]
+                self.sample_state_eval_index = 0
+                self.done = 1
+                return sample_state_eval
+        data_segments = self.data_eval[self.subject_index][0]
+        self.num_data_segments_eval = len(data_segments)
+        sample_state_eval = data_segments[self.sample_state_eval_index]
+        # sample_state_eval = self.data_eval['X_test'][self.sample_state_eval_index]
         return sample_state_eval
 
     def sample_metric_train(self, increment=True):
         if increment:
             self.sample_metric_train_index += 1
             if self.sample_metric_train_index >= self.num_metric_segments_train:
-                sample_metric_train = self.data_train[self.subject_index][1][self.sample_metric_train_index-1]
+                sample_metric_train = self.data_train[self.subject_index][2][self.sample_metric_train_index-1]
                 self.sample_metric_train_index = 0
                 return sample_metric_train
-        metric_segments = self.data_train[self.subject_index][1]
+        metric_segments = self.data_train[self.subject_index][2]
         self.num_metric_segments_train = len(metric_segments)
         sample_metric_train = metric_segments[self.sample_state_train_index]
         return sample_metric_train
@@ -152,21 +167,32 @@ class Environment:
         return standardized_energy_reward
 
     def get_reward(self, action):
-        self.reward = self.data_train[self.subject_index][2][self.sample_state_train_index][action]
+        if self.mode == 'train':
+            self.reward = self.norm_reward[self.data_train[self.subject_index][2][self.sample_state_train_index][action]]
+        elif self.mode == 'eval':
+            pass
+            # self.reward = self.data_eval[self.subject_index][2][self.sample_state_eval_index][action]
+        #return random.uniform(-1, 1)
         return self.reward
 
-    def calculate_reward(self):
-        reward = 0
-        self.reward = reward
-        return reward
+    def calculate_reward(self, metric, action):
+        self.reward = 0
+        if metric[action] > 0:
+            self.reward = self.config.reward_lambda * self.decimation_reward[action]
+        else:
+            self.reward = self.reverse_decimation_reward[action]
+        return self.reward
 
     def step(self, action):
         if self.mode == 'train':
             # metric = self.get_metric()
+            # reward = self.calculate_reward(metric, action)
             reward = self.get_reward(action)
             next_state = self.get_state()
+            return reward, next_state
         elif self.mode == 'eval':
             # metric = self.get_metric()
-            reward = self.get_reward(action)
+            # reward = self.calculate_reward(metric, action)
+            # reward = self.get_reward(action)
             next_state = self.get_state()
-        return reward, next_state
+            return None, next_state
