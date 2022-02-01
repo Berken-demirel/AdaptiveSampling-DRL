@@ -170,48 +170,28 @@ def define_my_model_dense(inp_shape, out_shape):
 def define_my_model_dense_2(inp_shape, out_shape):
     nb_filters = 64
     drp_out_dns = .5
-    nb_dense = 256
+    nb_dense = 129
     kernel_regularizer = regularizers.l2(0.00005)
     inp = Input(inp_shape)
-    layer_0 = Conv2D(64, kernel_size=(5, 1), strides=(1, 1), padding='same', activation=None)(inp)
+    layer_0 = Conv2D(32, kernel_size=(9, 1), strides=(2, 1), padding='same', activation=None)(inp)
     x = BatchNormalization()(layer_0)
     x = Activation('relu')(x)
-    x = compact_module(x, 9, 64)
+    x = compact_module(x, 7, 48)
     x = inception_module_1(x)
     x = compact_module(x, 5, 128)
-    x = compact_module(x, 3, 256)
     #### DAP Layer
     x = DimensionAdaptivePoolingForSensors((4, 1), operation="max", name="DAP", forRNN=False)(x)
 
     act = Dense(nb_dense, kernel_regularizer=kernel_regularizer, activation='relu', name="act_dns")(x)
     act = Dropout(drp_out_dns, name="act_drp_out")(act)
-    out_act = Dense(out_shape, activation='sigmoid', name="act_smx")(act)
+    out_act = Dense(out_shape, activation='softmax', name="act_smx")(act)
     model = keras.models.Model(inputs=inp, outputs=out_act)
     return model
 
-
-def Ronao2016HumanWithDAP(inp_shape, out_shape, pool_list=(4, 1)):
-    drp_out_dns = .8
-    nb_dense = 1000
-    kernel_regularizer = regularizers.l2(0.00005)
-
+def define_my_dense(inp_shape,out_shape):
     inp = Input(inp_shape)
-    x = Conv2D(96, kernel_size=(9, 1),
-               kernel_regularizer=kernel_regularizer,
-               strides=(1, 1), padding='same', activation='relu')(inp)
-    x = Conv2D(130, kernel_size=(7, 1),
-               kernel_regularizer=kernel_regularizer,
-               strides=(1, 1), padding='same', activation='relu')(x)
-    x = Conv2D(192, kernel_size=(5, 1),
-               kernel_regularizer=kernel_regularizer,
-               strides=(1, 1), padding='same', activation='relu')(x)
-
-    x = DimensionAdaptivePoolingForSensors(pool_list, operation="max", name="DAP", forRNN=False)(x)
-
-    act = Dense(nb_dense, kernel_regularizer=kernel_regularizer,
-                activation='relu', name="act_dns")(x)
-    act = Dropout(drp_out_dns, name="act_drp_out")(act)
-    out_act = Dense(out_shape, activation='sigmoid', name="act_smx")(act)
-    model = keras.models.Model(inputs=inp, outputs=out_act)
-
+    x1 = Dense(128, activation='relu')(inp)
+    x2 = Dense(17, activation='relu')(x1)
+    x3 = Dense(5, activation='relu')(x2)
+    model = keras.models.Model(inputs=inp, outputs=x3)
     return model

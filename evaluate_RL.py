@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.utils import class_weight
 from sklearn.metrics import confusion_matrix
 import tensorflow_addons as tfa
-import  pickle
+import pickle
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import regularizers
@@ -111,34 +111,44 @@ class DimensionAdaptivePoolingForSensors(DimensionAdaptivePooling):
 
 
 def label_encoding(labels):
-    encoded_labels = np.empty((len(labels), 5), dtype=int)
+    encoded_labels = np.empty((len(labels), 3), dtype=int)
     for i in range(len(labels)):
         if labels[i] == 0:
-            encoded_labels[i] = [1, 0, 0, 0, 0]
+            encoded_labels[i] = [1, 0, 0]
         elif labels[i] == 1:
-            encoded_labels[i] = [0, 1, 0, 0, 0]
+            encoded_labels[i] = [0, 1, 0]
         elif labels[i] == 2:
-            encoded_labels[i] = [0, 0, 1, 0, 0]
-        elif labels[i] == 3:
-            encoded_labels[i] = [0, 0, 0, 1, 0]
-        elif labels[i] == 4:
-            encoded_labels[i] = [0, 0, 0, 0 ,1]
+            encoded_labels[i] = [0, 0, 1]
     return np.array(encoded_labels)
 
-def give_me_reward(decimate_rate,true_labels,predict):
-    return_array = np.zeros(len(predict,))
-    for i in range(len(predict)):
-        if predict[i] == true_labels[i]:
-            return_array[i,] = decimate_rate
-        else:
-            return_array[i,] = -10
-    return return_array
+def action_to_decimate(action):
+    if action == 0:
+        return 32
+    if action == 1:
+        return 64
+    if action == 2:
+        return 128
+    if action == 3:
+        return 256
 
-def dimension_adaptive_training(model, X_train, Y_train, X_val, Y_val,
+def list_to_array(data):
+    return_data = np.zeros((1,256))
+    return_labels = np.zeros((1,),dtype=int)
+    for i in data:
+        data1 = i[0]
+        label1 = i[1]
+        return_data = np.concatenate((return_data,data1))
+        return_labels = np.concatenate((return_labels,label1))
+    return_data = np.delete(return_data, 0, 0)
+    return_labels = np.delete(return_labels, 0)
+    return_data = np.expand_dims(return_data, 2)
+    return return_data,return_labels
+
+def dimension_adaptive_training(model, X_train, Y_train, X_val, Y_val, data_class_weights,
                                 batch_size=128, num_epochs=128, save_dir=None,
                                 W_combinations=None, H_combinations=None,
                                 n_batch_per_train_setp=1):
-    loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
     optimizer = tf.keras.optimizers.Adam()
     best_val_accuracy = 0.
     for epoch in range(num_epochs):
@@ -159,6 +169,7 @@ def dimension_adaptive_training(model, X_train, Y_train, X_val, Y_val,
                     except:
                         break
                     X = X.numpy()
+                    sample_weight = [data_class_weights[y] for y in Y.numpy()]
                     ### Dimension Randomization
                     ####### Random Sensor Selection
                     rnd_H = H_combinations[rnd_order_H[j % len(rnd_order_H)]]
@@ -167,7 +178,7 @@ def dimension_adaptive_training(model, X_train, Y_train, X_val, Y_val,
                     rnd_W = W_combinations[rnd_order_W[j % len(rnd_order_W)]]
                     X = tf.image.resize(X, (rnd_W, len(rnd_H)))
                     logits = model(X)
-                    accum_loss = accum_loss + loss_fn(Y, logits)
+                    accum_loss = accum_loss + loss_fn(Y, logits, sample_weight)
                     n_samples = n_samples + 1.
             gradients = tape.gradient(accum_loss, model.trainable_weights)
             gradients = [g * (1. / n_samples) for g in gradients]
@@ -179,19 +190,19 @@ def dimension_adaptive_training(model, X_train, Y_train, X_val, Y_val,
         f1_record = np.zeros((len(W_combinations), len(H_combinations)))
         for w, W_comb in enumerate(W_combinations):
             for h, H_comb in enumerate(H_combinations):
-                logits_np_array = np.zeros((1, 5))
-                val_auc = tfa.metrics.F1Score(num_classes=5, threshold=0.5)
+                val_accuracy = tf.keras.metrics.Accuracy()
+                val_auc = tfa.metrics.F1Score(num_classes=3, threshold=0.5)
                 X = X_val.copy()
                 X = X[:, :, H_comb, :]
                 X = tf.image.resize(X, (W_comb, len(H_comb)))
 
-                X_splitted = np.array_split(X, 20, axis=0)
-                for k in X_splitted:
-                    logits_np_array = np.concatenate((logits_np_array, dana_model(k, training=False)))
-                logits = np.delete(logits_np_array, 0, axis=0)
+                logits = model(X, training=False)
                 prediction = tf.argmax(logits, axis=1, output_type=tf.int32)
-                val_auc(Y_val, np.asarray(logits))
-                f1_record[w, h] = np.mean(val_auc(Y_val, np.asarray(logits)))
+                val_accuracy.update_state(prediction, Y_val)
+                one_hot_val = label_encoding(Y_val)
+                val_auc(one_hot_val, np.asarray(logits))
+                accuracy_record[w, h] = val_accuracy.result()
+                f1_record[w, h] = np.mean(val_auc(one_hot_val, np.asarray(logits)))
 
         current_val_acc = accuracy_record
         curr_f1 = f1_record
@@ -205,9 +216,10 @@ def dimension_adaptive_training(model, X_train, Y_train, X_val, Y_val,
         # model.save_weights(save_dir)
         if epoch % 5 == 0:
             print(
-                "Epoch {} -- Training Loss = {:.4f} -- Validation Mean F1 {:.4f}".format(
+                "Epoch {} -- Training Loss = {:.4f} -- Validation Mean Accuracy {:.4f}  -- Validation Mean F1 {:.4f}".format(
                     epoch,
                     epoch_loss_avg.result(),
+                    np.mean(current_val_acc),
                     np.mean(f1_record)))
 
     if save_dir:
@@ -223,57 +235,58 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
 
-data_class_names = ["N", "S","V"]
-
 with open('all_data.pickle', 'rb') as handle:
     all_data = pickle.load(handle)
 
 training_data = all_data[0]
 valid_data = all_data[1]
 test_data = all_data[2]
+actions = np.load('AdaptiveSamplingV3_lr0_0001_bs32_trial6_action_trajectory.npy')
+X_train_new,Y_train = list_to_array(training_data)
+X_train = np.expand_dims(X_train_new, 3)
 
-# dana_model = Ordonez2016DeepWithDAP((None, None, 1), len(np.unique(Y_train)))
-dana_model = define_my_model_dense_2((None, None, 1), 3)
+X_valid_new,Y_valid = list_to_array(valid_data)
+X_valid = np.expand_dims(X_valid_new, 3)
+
+X_test_new,Y_test = list_to_array(test_data)
+X_test = np.expand_dims(X_test_new, 3)
+
+data_class_names = ["N", "S", "V"]
+w = X_train.shape[1]
+h = X_train.shape[2]
+
+dana_model = define_my_model_dense_2((None, None, 1), len(np.unique(Y_train)))
 dana_model.summary()
-
-### These are a subset of feasible situations in both dimensions
-W_combinations = [32,64,128,256]
-H_combinations = [[0]]
-n_batch_per_train_setp = 5  ## This is B
 
 dana_model.load_weights("saved_models/dana/new_model7_1")
 tf.debugging.set_log_device_placement(True)
 gpus = tf.config.list_logical_devices('GPU')
+predictions = np.zeros((1, ))
+for i in range(len(X_test)):
+    current_data = X_test[i,:,:,:]
+    true_labels = Y_test[i]
+    X = current_data.copy()
+    X = np.expand_dims(X, 0)
+    action = action_to_decimate(actions[i])
+    X = tf.image.resize(X, (action, 1))
+    logits_np_array = dana_model(X, training=False)
+    prediction = np.argmax(logits_np_array, 1)
+    predictions = np.concatenate((predictions,prediction))
+
+predictions = np.delete(predictions, 0, axis=0)
+
+fs = compute_AAMI_performance_measures(prediction, Y_test)
+write_AAMI_results(fs, str(w) + 'dana_dense2' + '.csv')
+
 strategy = tf.distribute.MirroredStrategy(gpus)
-
-for i in range(len(test_data)):
-    current_patient = test_data[i]
-    patient_array = np.zeros((len(current_patient[1]), 4))
-    counter = 0
-    for w, W_comb in enumerate(W_combinations):
-        logits_np_array = np.zeros((1, 3))
-        true_labels = current_patient[1]
-        current_data = np.expand_dims(current_patient[0], 2)
-        current_data = np.expand_dims(current_data, 3)
-        X = current_data.copy()
-        X = X[:, :, :, :]
-        X = tf.image.resize(X, (W_comb, 1))
-        X_splitted = np.array_split(X, 10, axis=0)
-        for k in X_splitted:
-            logits_np_array = np.concatenate((logits_np_array, dana_model(k, training=False)))
-        logits = np.delete(logits_np_array, 0, axis=0)
-        prediction = np.argmax(logits, 1)
-        return_array = give_me_reward(256/W_comb,true_labels,prediction)
-        patient_array[:, counter] = return_array
-        counter += 1
-    test_data[i].append(patient_array)
-
 with strategy.scope():
     for w, W_comb in enumerate(W_combinations):
         for h, H_comb in enumerate(H_combinations):
             logits_np_array = np.zeros((1, 3))
+            test_accuracy = tf.keras.metrics.Accuracy()
+            test_specifity = tf.keras.metrics.SpecificityAtSensitivity(0.5)
 
-            X = X_train.copy()
+            X = X_test.copy()
             X = X[:, :, H_comb, :]
             X = tf.image.resize(X, (W_comb, len(H_comb)))
             X_splitted = np.array_split(X, 20, axis=0)
@@ -281,7 +294,7 @@ with strategy.scope():
                 logits_np_array = np.concatenate((logits_np_array, dana_model(k, training=False)))
             logits = np.delete(logits_np_array, 0, axis=0)
             prediction = np.argmax(logits, 1)
-            fs = compute_AAMI_performance_measures(prediction, Y_train)
-            write_AAMI_results(fs, str(w) + 'dana_best' + '.csv')
+            fs = compute_AAMI_performance_measures(prediction, Y_test)
+            write_AAMI_results(fs, str(w) + 'dana_dense2' + '.csv')
 
 print('exit')
