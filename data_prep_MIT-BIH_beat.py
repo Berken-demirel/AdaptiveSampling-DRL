@@ -12,20 +12,6 @@ def normalize_me(data):
         data[k, :] = sklearn.preprocessing.normalize(data[k, :].reshape(1, -1), norm='max', axis=1, copy=True, return_norm=False)
     return data
 
-def split_data_to_chunks(k,data):
-    return_data = []
-    split_constant = 5 * 360
-    lenght_of_data = k[1][1] - k[1][0]
-    if lenght_of_data < split_constant:
-        return
-    a = math.floor(lenght_of_data / split_constant) * split_constant
-    arrays = np.array_split(data[k[1][0]:k[1][0]+a], math.floor(a / split_constant))
-    if k[0] == '(N':
-        label_array = np.zeros((len(arrays),),dtype=int)
-    else:
-        label_array = np.ones((len(arrays),),dtype=int)
-    return arrays, label_array
-
 def give_annots(current_annot, data, limits):
     symbol = current_annot.symbol
     samples  = current_annot.sample
@@ -103,21 +89,9 @@ for i in records:
         data_test_label = data_test[:,-1].astype(int)
         patients_test_cnn.append([data_test_2, data_test_label])
 
-X_train = np.delete(X_train,0,0)
-y_train = y_train[1:]
-X_test = np.delete(X_test,0,0)
-y_test = y_test[1:]
-# Preprocessing
-sos = signal.butter(10,[0.8/180, 45/180],btype='bandpass', output='sos')
-for i in range(len(X_train)):
-    # filtered = signal.sosfiltfilt(sos, X_train[i,:])
-    X_train[i,:] = sklearn.preprocessing.normalize(X_train[i,:].reshape(1,-1), norm='max', axis=1, copy=True, return_norm=False)
-#
-for i in range(len(X_test)):
-    # filtered = signal.sosfiltfilt(sos, X_test[i,:])
-    X_test[i,:] = sklearn.preprocessing.normalize(X_test[i,:].reshape(1,-1), norm='max', axis=1, copy=True, return_norm=False)
+all_data = [patients_train_cnn, patients_valid_cnn, patients_test_cnn]
 
-X_train = np.expand_dims(X_train,2)
-X_test = np.expand_dims(X_test,2)
+with open('all_data.pickle', 'wb') as handle:
+    pickle.dump(all_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 print('exit')
