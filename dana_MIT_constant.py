@@ -7,6 +7,7 @@ from sklearn.utils import class_weight
 from sklearn.metrics import confusion_matrix
 import tensorflow as tf
 import pickle
+import pickle5 as p
 import tensorflow.keras as keras
 from tensorflow.keras import regularizers
 from tensorflow.keras.layers import *
@@ -76,16 +77,15 @@ def list_to_array(data):
 
 def define_my_model_dense(inp_shape, out_shape):
     drp_out_dns = .5
-    nb_dense = 256
+    nb_dense = 129
     kernel_regularizer = regularizers.l2(0.00005)
     inp = Input(inp_shape)
-    layer_0 = Conv2D(64, kernel_size=(5, 1), strides=(1, 1), padding='same', activation=None)(inp)
+    layer_0 = Conv2D(32, kernel_size=(9, 1), strides=(2, 1), padding='same', activation=None)(inp)
     x = BatchNormalization()(layer_0)
     x = Activation('relu')(x)
-    x = compact_module(x, 9, 64)
+    x = compact_module(x, 7, 48)
     x = inception_module_1(x)
     x = compact_module(x, 5, 128)
-    x = compact_module(x, 3, 256)
     #### DAP Layer
     x = MaxPooling2D(pool_size=(4, 1), strides=(4, 1))(x)
     x = Flatten()(x)
@@ -104,7 +104,7 @@ def define_my_model_dense(inp_shape, out_shape):
 print("TensorFlow Version: ", tf.__version__)
 
 with open('all_data.pickle', 'rb') as handle:
-    all_data = pickle.load(handle)
+    all_data = p.load(handle)
 
 training_data = all_data[0]
 valid_data = all_data[1]
@@ -122,7 +122,9 @@ X_test = np.expand_dims(X_test_new, 3)
 data_class_names = ["N", "S", "V"]
 
 w = X_train.shape[1]
+h = X_train.shape[2]
 
+## Computing the class weight for each label (in case that dataset is not balanced)
 data_class_weights = class_weight.compute_class_weight(class_weight="balanced",
                                                        classes=range(len(data_class_names)),
                                                        y=Y_train)
@@ -131,6 +133,7 @@ print("- Data Shape:\n -- Training:  Data {} Labels {} \n -- Testing: Data {} La
       format(X_train.shape, Y_train.shape, X_test.shape, Y_test.shape))
 print("- Activity Weights", dict(zip(data_class_names, data_class_weights.values())))
 
+### These are a subset of feasible situations in both dimensions
 W_combinations = [32, 64, 128, 256]
 normal_size = 256
 for w in W_combinations:
@@ -153,7 +156,7 @@ for w in W_combinations:
     stop_me = tf.keras.callbacks.EarlyStopping(monitor='val_f1_score', min_delta=0, patience=100,
                                                verbose=1, mode='max', baseline=None, restore_best_weights=True)
 
-    history = model.fit(X_train_l, ytrain, epochs=2, batch_size=80, verbose=0,
+    history = model.fit(X_train_l, ytrain, epochs=500, batch_size=80, verbose=0,
                         validation_data=(X_valid_l, yval), callbacks=[stop_me, model_checkpoint_callback],
                         class_weight=data_class_weights)
 
