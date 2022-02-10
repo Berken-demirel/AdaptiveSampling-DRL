@@ -1,6 +1,11 @@
 # AdaptiveSampling-DRL
 
+## Overview
+This repo describes the official software package developed for and used to create the free and public adaptive sampling rate controller. It is a a runtime implementation of sampling rate control using deep reinforcement learning (DRL). By using essential morphological details contained in the heartbeat waveform, the DRL agent can control the sampling rate and effectively reduce energy consumption at runtime.
+
 ## Initial Setup
+## Reading the MIT-BIH data
+#### Since the data got from [MIT-BIH](https://physionet.org/content/mitdb/1.0.0/) is not segmented and normalized, the [data_prep_MIT-BIH_beat.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/data_prep_MIT-BIH_beat.py) should be . Please note that [requirements_3](blabla) is necessary to run this script.
 ## Running Scripts
 
 ## Motivational Example
@@ -14,9 +19,6 @@
 ## Utilities Script
 #### [swd_utils.py](https://github.com/Berken-demirel/SWD_Detect/blob/master/Human/swd_utils.py) contains most of the important functions such as estimating the Multitaper PSD, configuration function provides Leave N One Out [Cross Validation](https://en.wikipedia.org/wiki/Cross-validation_(statistics)), metric calculation etc. All functions are explained inside the script just after the definition. Feel free to investigate further.
 <img src="./Human/img/crossval.gif" width="300">
-
-## Reading the MIT-BIH data
-#### Since the data got from [MIT-BIH](https://physionet.org/content/mitdb/1.0.0/) is not segmented and normalized, some file handling functions are coded in [data_prep_MIT-BIH_beat.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/data_prep_MIT-BIH_beat.py). Please note that [requirements_3](blabla) is necessary to run this script.
 
 ## DRL Training
 #### Before training the DRL Agent, please fill in the necessary fields for the configuration file [DQL.yaml](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/DRL/configs/DQL.yaml)
