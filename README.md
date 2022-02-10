@@ -19,7 +19,7 @@
 #### Since the data got from [MIT-BIH](https://physionet.org/content/mitdb/1.0.0/) is not segmented and normalized, some file handling functions are coded in [data_prep_MIT-BIH_beat.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/data_prep_MIT-BIH_beat.py). Please note that [requirements_3](blabla) is necessary to run this script.
 
 ## DRL Training
-#### Before training the DRL Agent, please fill in the necessary fields for the configuration file [DQL.yaml] (https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/DRL/configs/DQL.yaml)
+#### Before training the DRL Agent, please fill in the necessary fields for the configuration file [DQL.yaml](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/DRL/configs/DQL.yaml)
 #### To train the DRL agent, run [DQL_trainer.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/DRL/src/DQL_trainer.py) which will take the configuration settings mentioned previously.
 
 ## DRL Inference
