@@ -15,7 +15,7 @@ def normalize_me(data):
 def give_annots(current_annot, data, limits):
     symbol = current_annot.symbol
     samples  = current_annot.sample
-    # 120 points before 180 points after
+    # 110 points before 146 points after
     return_array = np.zeros((1,258))
     for i in range(0,len(symbol)):
         if samples[i] < 110 or samples[i] + 146 > len(data) or samples[i] > limits[-1] or samples[i] < limits[0]:
