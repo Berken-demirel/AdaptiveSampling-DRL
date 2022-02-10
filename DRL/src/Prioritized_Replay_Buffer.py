@@ -51,7 +51,6 @@ def propagate_changes(change: float, node: SumTreeNode):
         propagate_changes(change, node.parent)
 
 class Prioritized_Replay_Buffer():
-    """Replay buffer to store past experiences that the agent can then use for training data"""
     
     def __init__(self, config):
         self.config = config
@@ -59,8 +58,7 @@ class Prioritized_Replay_Buffer():
         self.experiences_per_sampling = self.config.replay_batch_size
 
         self.memory = deque(maxlen=self.config.replay_memory_size)
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state"])
-        #self.memory = [namedtuple("Experience", field_names=["state", "action", "reward", "next_state"]) for i in range(self.config.replay_memory_size)]
+        self.experience = namedtuple("Experience", field_names=["state", "prev_action", "action", "reward", "next_state", "done"])
 
         self.base_node, self.leaf_nodes = create_tree([0 for i in range(self.config.replay_memory_size)])
         self.beta = self.config.min_beta
@@ -68,24 +66,14 @@ class Prioritized_Replay_Buffer():
         self.min_priority = 0.01
         self.current_idx = 0
 
-        # self.data = namedtuple("Data", field_names=["priority", "probability", "weight", "index"])
-        # indices = []
-        # datas = []
-        # for i in range(self.config.replay_memory_size):
-        #     indices.append(i)
-        #     d = self.data(0, 0, 0, i)
-        #     datas.append(d)
-        # self.memory_dict = {key: self.experience for key in indices}
-        # self.memory_data = {key: data for key, data in zip(indices, datas)}
-
     def update(self, idx, priority):
         update(self.leaf_nodes[idx], self.adjust_priority(priority))
 
     def adjust_priority(self, prioirty):
         return np.power(prioirty + self.min_priority, self.alpha)
 
-    def add_experience(self, state, action, reward, next_state, priority):
-        experience = self.experience(state, action, reward, next_state)
+    def add_experience(self, state, prev_action, action, reward, next_state, done, priority):
+        experience = self.experience(state, prev_action, action, reward, next_state, done)
         self.memory.append(experience)
         self.update(self.current_idx, priority)
         self.current_idx += 1
@@ -93,21 +81,22 @@ class Prioritized_Replay_Buffer():
             self.current_idx = 0
 
     def sample(self, num_experiences=None, separate_out_data_types=True):
-        """Draws a random sample of experience from the replay buffer"""
         experiences, sampled_idxs, is_weights = self.pick_experiences(num_experiences)
         if separate_out_data_types:
-            current_states, actions, rewards, next_states = self.separate_out_data_types(experiences)
-            return current_states, actions, rewards, next_states, sampled_idxs, is_weights
+            current_states, prev_actions, actions, rewards, next_states, dones = self.separate_out_data_types(experiences)
+            return current_states, prev_actions, actions, rewards, next_states, dones, sampled_idxs, is_weights
         else:
             return experiences, sampled_idxs, is_weights
             
     def separate_out_data_types(self, experiences):
-        """Puts the sampled experience into the correct format for a PyTorch neural network"""
         current_states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.config.device)
+        prev_actions = torch.from_numpy(np.vstack([e.prev_action for e in experiences if e is not None])).float().to(self.config.device)
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(self.config.device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(self.config.device)
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.config.device)
-        return current_states, actions, rewards, next_states
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None])).float().to(self.config.device)
+
+        return current_states, prev_actions, actions, rewards, next_states, dones
     
     def pick_experiences(self, num_experiences=None):
         sampled_idxs = []
@@ -129,7 +118,7 @@ class Prioritized_Replay_Buffer():
         for idx in sampled_idxs:
             sampled_batch.append(self.memory[idx])
 
-        self.beta = self.config.min_beta + (self.config.max_beta - self.config.min_beta) * min((self.current_idx * self.config.epsilon_decay_rate) / (self.config.num_episodes_train * self.config.num_trials), self.config.max_beta)
+        self.beta = self.config.min_beta + (self.config.max_beta - self.config.min_beta) * min((self.current_idx * self.config.epsilon_decay_rate) / (self.config.num_subjects_train * self.config.num_trials), self.config.max_beta)
         return sampled_batch, sampled_idxs, is_weights
 
     def __len__(self):

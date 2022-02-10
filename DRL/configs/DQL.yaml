@@ -1,18 +1,17 @@
-name: "AdaptiveSampling"
+name: "AdaptiveSamplingV3"
 #seed: 1
 
-data_train_path: "/pub/panwangc/custom_DRL/JBHI_2022/dataset/to_Luke_v2.pickle"
-#data_eval_path: "/pub/panwangc/custom_DRL/JBHI_2022/dataset/MIT-BIH_True-Final.npz"
-data_eval_path: "/pub/panwangc/custom_DRL/JBHI_2022/dataset/eval_RL.pickle"
+data_train_path: "" # specify the path to the training data pickle file
+data_eval_path: "" # specify the path to the evaluation data pickle file
 
-policy_model_save_path: "/pub/panwangc/custom_DRL/JBHI_2022/AdaptiveSampling-DRL/DRL/model/"
+policy_model_save_path: "" # specify the path for saving trained models
 
 use_PER: False
 min_beta: 0.4
 max_beta: 1.0
 
 ## Experiment
-experiments_save_path: "/pub/panwangc/custom_DRL/JBHI_2022/AdaptiveSampling-DRL/DRL/experiments/"
+experiments_save_path: "" # specify the path for saving evaluation results
 
 num_trials: 6
 experiment_num: 1
@@ -26,8 +25,6 @@ normalize_rewards: True   # max, min
 standardize_rewards: False    # mean, stdev
 
 use_gpu: True
-train_test_split: 0.8
-mix_clips: False
 gradient_clip: False
 
 # DDQN parameters
@@ -37,8 +34,8 @@ max_epsilon: 1.0 # determines the action for exploration vs exploitation
 min_epsilon: 0.01
 epsilon_decay_rate: 1
 batch_delay: 1
-replay_batch_size: 32
-learning_rate_max: 0.0001   # 0.001 (Bad), 0.0001 (BEST), 0.00001 slight decrease in accuracy
+replay_batch_size: 8
+learning_rate_max: 0.0001
 learning_rate_min: 0.00001
 gamma: 0.99    # the discount value
 hard_update: True

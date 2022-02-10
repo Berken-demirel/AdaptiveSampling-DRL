@@ -17,11 +17,6 @@ class Agent():
             target_param.data.copy_(policy_param)
         self.target_net.eval()
         self.optimizer = torch.optim.Adam(params=self.policy_net.parameters(), lr=self.config.learning_rate_max)
-        # self.optimizer = torch.optim.SGD(params=self.policy_net.parameters(), lr=self.config.learning_rate_max,
-        #                                  momentum=0.9)
-        # self.scheduler = torch.optim.lr_scheduler.CyclicLR(self.optimizer, base_lr=self.config.learning_rate_min,
-        #                                                    max_lr=self.config.learning_rate_max)
-        # self.optimizer = torch.optim.RMSprop(params=self.policy_net.parameters(), lr=self.config.learning_rate)
         if self.config.use_PER:
             self.replay_buffer = Prioritized_Replay_Buffer(self.config)
         else:
@@ -34,16 +29,13 @@ class Agent():
         return self.exploration_strategy.decay(current_episode, num_episodes)
 
     def select_action(self, current_state, prev_action):
-        #print(self.epsilon)
         random_val = random.random()
         # exploration
         if self.epsilon > random_val:
-            # print("exploration")
             action = random.randrange(self.config.num_actions)
             return action
         # exploitation
         else:
-            # print("exploitation")
             self.policy_net.eval()
             with torch.no_grad():
                 features = torch.tensor([current_state], dtype=torch.float, device=self.config.device)

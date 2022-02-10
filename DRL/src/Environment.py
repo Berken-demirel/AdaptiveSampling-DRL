@@ -90,9 +90,6 @@ class Environment:
         if not self.config.override_num_subjects:
             self.config.num_subjects_train = len(self.data_train)
         self.num_subjects_eval = len(self.data_eval)
-        # print(f'num_subjects_eval: {self.num_subjects_eval}')
-        # self.num_steps_eval = len(self.data_eval['X_test'])
-        # print(f'num_steps_eval: {self.num_steps_eval}')
 
     def sample_state_train(self, increment=True):
         if increment:
@@ -119,7 +116,6 @@ class Environment:
         data_segments = self.data_eval[self.subject_index][0]
         self.num_data_segments_eval = len(data_segments)
         sample_state_eval = data_segments[self.sample_state_eval_index]
-        # sample_state_eval = self.data_eval['X_test'][self.sample_state_eval_index]
         return sample_state_eval
 
     def sample_metric_train(self, increment=True):
@@ -153,16 +149,10 @@ class Environment:
             return self.sample_metric_eval(increment)
 
     def normalize_reward(self, energy):
-        # self.min_error = min(self.min_error, error)
-        # self.max_error = max(self.max_error, error)
-
         normalized_energy_reward = -(energy - self.min_energy) / (self.max_energy - self.min_energy)
         return normalized_energy_reward
 
     def standardize_reward(self, energy):
-        # self.mean_energy
-        # self.standard_deviation_energy
-
         standardized_energy_reward = -(energy - self.mean_energy) / self.standard_deviation_energy
         return standardized_energy_reward
 
@@ -171,8 +161,6 @@ class Environment:
             self.reward = self.norm_reward[self.data_train[self.subject_index][2][self.sample_state_train_index][action]]
         elif self.mode == 'eval':
             pass
-            # self.reward = self.data_eval[self.subject_index][2][self.sample_state_eval_index][action]
-        #return random.uniform(-1, 1)
         return self.reward
 
     def calculate_reward(self, metric, action):
@@ -185,14 +173,9 @@ class Environment:
 
     def step(self, action):
         if self.mode == 'train':
-            # metric = self.get_metric()
-            # reward = self.calculate_reward(metric, action)
             reward = self.get_reward(action)
             next_state = self.get_state()
             return reward, next_state
         elif self.mode == 'eval':
-            # metric = self.get_metric()
-            # reward = self.calculate_reward(metric, action)
-            # reward = self.get_reward(action)
             next_state = self.get_state()
             return None, next_state

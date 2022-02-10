@@ -9,7 +9,6 @@ class Config():
             yaml_configs = yaml.safe_load(f)
         for arg_name, arg_value in yaml_configs.items():
             self.__dict__[arg_name] = arg_value
-        #print(self.__dict__)
 
         if self.__dict__['use_gpu']:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
