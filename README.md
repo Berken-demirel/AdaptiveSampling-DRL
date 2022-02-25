@@ -16,9 +16,6 @@ This repo describes the official software package developed for and used to crea
 #### The model architecture is implemented in [models.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/models.py). Requirements_2 is needed to run the script without errors.
 <img src="./Figures/jbhi_arch.png" width="600">
 
-## Utilities Script
-#### [swd_utils.py](https://github.com/Berken-demirel/SWD_Detect/blob/master/Human/swd_utils.py) contains most of the important functions such as estimating the Multitaper PSD, configuration function provides Leave N One Out [Cross Validation](https://en.wikipedia.org/wiki/Cross-validation_(statistics)), metric calculation etc. All functions are explained inside the script just after the definition. Feel free to investigate further.
-<img src="./Human/img/crossval.gif" width="300">
 
 ## DRL Training
 #### Before training the DRL Agent, please fill in the necessary fields for the configuration file [DQL.yaml](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/DRL/configs/DQL.yaml)
