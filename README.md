@@ -5,7 +5,7 @@ This repo describes the official software package developed for and used to crea
 
 ## Initial Setup
 ## Reading the MIT-BIH data
-#### Since the data got from [MIT-BIH](https://physionet.org/content/mitdb/1.0.0/) is not segmented and normalized, the [data_prep_MIT-BIH_beat.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/data_prep_MIT-BIH_beat.py) should be . Please note that [requirements_3](blabla) is necessary to run this script.
+#### Since the data got from [MIT-BIH](https://physionet.org/content/mitdb/1.0.0/) is not segmented and normalized, the [data_prep_MIT-BIH_beat.py](https://github.com/Berken-demirel/AdaptiveSampling-DRL/blob/main/data_prep_MIT-BIH_beat.py) should be run.
 ## Running Scripts
 
 ## Motivational Example
